@@ -1,0 +1,129 @@
+---
+title: "Creating Heatmaps"
+author: "Jacob Rozran"
+date: "March 5, 2016"
+output: html_document
+---
+
+# STEP 1: READ IN THE DATA
+
+Get the data - I've just got it downloaded locally. Also - load the required 
+libraries for the mapping.
+
+```{r setup}
+library(ggplot2)        ## VISUALIZATIONS
+library(ggmap)          ## MAPS
+
+## READ IN THE DATA 
+conc_deaths <- read.csv("Accidental_Drug_Related_Deaths_January_2012-Sept_2015.csv")
+```
+
+# STEP 2: CLEAN THE DATA 
+
+The location data, in the **deathLoc** column, is ugly. It comes in this format:
+
+`r conc_deaths$deathLoc[1]`
+
+To clean it, I first do a substitution for the '\n' into a ';'. R was throwing 
+errors when I tried to just split on '\n'. I then split the data on the ';'.
+
+```{r first_split}
+## SUBSTITUTE '\n' FOR ';'
+loc_data <- gsub(pattern = "\n", replacement = ";", x = conc_deaths$DeathLoc)
+## SPLIT ON ';'
+loc_data <- strsplit(loc_data, ";")
+```
+
+I then add the **town** and **cordinates** to the initial dataset as separate columns 
+and blow away the loc_data list and the original **DeathLoc** column (just a 
+couple clean up steps).
+
+```{r add_town_and_coord}
+## FOR EACH ROW, ADD THE TOWN TO THE TOWN COLUMN 
+## AND COORDINATES TO THE COORDINATES COLUMN
+for(i in 1:length(loc_data)){
+        conc_deaths$town[i] <- loc_data[[i]][1]
+        conc_deaths$coordinates[i] <- loc_data[[i]][2]
+}
+
+## BLOW AWAY THE NOW UNNEEDED VARIABLES
+loc_data <- NULL
+conc_deaths$DeathLoc <- NULL
+```
+
+Now we need to clean up the coordinates column and split it into a latitude and 
+longitude. I then add them to their own columns
+
+```{r split_coord}
+## REMOVE THE '(' 
+conc_deaths$coordinates <- gsub(pattern = "\\(", replacement = "", 
+                          x = conc_deaths$coordinates)
+## REMOVE THE ')' 
+conc_deaths$coordinates <- gsub(pattern = ")", replacement = "", 
+                          x = conc_deaths$coordinates)
+
+## SPLIT ON THE ','
+loc_data <- strsplit(conc_deaths$coordinates, split = ", ")
+
+## FOR EACH ROW, ADD THE LATITUDE TO THE LAT COLUMN 
+## AND LONGITUDE TO THE LON COLUMN
+for(i in 1:length(loc_data)){
+        conc_deaths$lat[i] <- loc_data[[i]][1]
+        conc_deaths$lon[i] <- loc_data[[i]][2]
+}
+```
+
+Final clean up step before we map - we need to change the **lat** and **lon** 
+columns to numerics - by default they are factors. Also, unnecessarily, I am 
+blowing away the unneeded variables. 
+
+```{r as_numeric}
+## CHANGE THE VARIABLE TO NUMERICS
+conc_deaths$lat <- as.numeric(conc_deaths$lat)
+conc_deaths$lon <- as.numeric(conc_deaths$lon)
+
+## GET RID OF THE UNNECESSARY VARIABLES
+loc_data <- NULL
+conc_deaths$coord <- NULL
+```
+
+# MAPPING THE DATA
+
+Finally, we are ready to map the data!
+
+Here we get the map of Conneticut (I do it for 2 levels of zoom), and then map 
+it! The higher level of zoom gives you this map:
+
+```{r map1}
+## GET THE BASE MAP
+con <- get_map(location = "Conneticut", maptype = "roadmap", zoom = 8)
+
+## ADD THE "HEAT" TO THE MAP
+map1 <- ggmap(con, extent = "device") + geom_density2d(data = conc_deaths, 
+                                                        aes(x = lon, y = lat)) + 
+        stat_density2d(data = conc_deaths, aes(fill = ..level.., alpha = ..level..),
+                       size = 0.01, geom = "polygon") + 
+        scale_fill_gradient(low = "green", high = "red", guide = FALSE) + 
+        scale_alpha(range = c(0, 0.3), guide = FALSE)
+
+## DISPLAY IT
+map1
+```
+
+The next higher zoom gives you this map:
+
+```{r map2}
+## GET THE BASE MAP
+con1 <- get_map(location = "Conneticut", maptype = "roadmap", zoom = 9)
+
+## ADD THE "HEAT" TO THE MAP
+map2 <- ggmap(con1, extent = "device") + geom_density2d(data = conc_deaths, 
+                                                        aes(x = lon, y = lat)) + 
+        stat_density2d(data = conc_deaths, aes(fill = ..level.., alpha = ..level..),
+                       size = 0.01, geom = "polygon") + 
+        scale_fill_gradient(low = "green", high = "red", guide = FALSE) + 
+        scale_alpha(range = c(0, 0.3), guide = FALSE)
+
+## DISPLAY IT
+map2
+```
